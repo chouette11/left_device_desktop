@@ -1,6 +1,7 @@
 import socket
 import flet as ft
 import threading
+import json
 
 def main(page: ft.Page):
     # テキストコンポーネントを作成
@@ -63,6 +64,33 @@ def main(page: ft.Page):
                         print(f"Received message: {message_recv}")
                         self.message_queue.append(message_recv)
                         self.gui_update_event.set()
+                        update_message_box(message_recv)
+                        print(message_recv)
+                        # message_recvを改行文字で分割してリストに格納
+                        message_list = message_recv.split('\n')
+                        print(message_list)
+                        # リストの最後を取得
+                        message_recv = message_list[-1]
+                        try:
+                            json_ob = json.loads(message_recv)
+                            print(f"JSON object: {json_ob}")
+                        except json.JSONDecodeError as json_err:
+                            print(f"JSON decode error: {json_err}")
+                            print(f"Invalid JSON: {message_recv}")
+                            # 必要に応じてエラーメッセージをクライアントに送信することができます。
+                            error_message = 'Invalid JSON format'.encode('utf-8')
+                            conn.send(error_message)
+                            continue
+
+                        # Example of processing the JSON object
+                        if 'data' in json_ob:
+                            print(f"Data from JSON: {json_ob['data']}")
+                            if json_ob['data'] == 'exit':
+                                print("Client requested exit")
+                                break
+                        
+                        byte = 'ok'.encode('utf-8')
+                        conn.send(byte)
                     except ConnectionResetError:
                         print("Connection reset by client")
                         break
@@ -74,26 +102,17 @@ def main(page: ft.Page):
                         break
 
         def respond(self, message: str) -> str:
-            return message
+            update_message_box(message)
 
     class InetServer(BlockingServerBase):
         def __init__(self, host: str = "192.168.10.103", port: int = 8080) -> None:
             super().__init__(timeout=60, buffer=1024)
             self.server = (host, port)
-            threading.Thread(target=self.start, args=(self.server, socket.AF_INET, socket.SOCK_STREAM, 0), daemon=True).start()
+            self.message_queue = []  # message_queueの初期化
+            self.start(self.server, socket.AF_INET, socket.SOCK_STREAM, 0)
 
     # サーバーを開始
-    server = InetServer()
+    InetServer()
 
-    # メッセージを更新するためのスレッド
-    def update_gui():
-        while True:
-            server.gui_update_event.wait()
-            while server.message_queue:
-                message = server.message_queue.pop(0)
-                update_message_box(message)
-            server.gui_update_event.clear()
-
-    threading.Thread(target=update_gui, daemon=True).start()
 
 ft.app(target=main)

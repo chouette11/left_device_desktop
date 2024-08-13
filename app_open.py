@@ -1,3 +1,4 @@
 import subprocess
 
-subprocess.Popen(["/Applications/Slack.app/Contents/MacOS/Slack"])
+def open_slack():
+    subprocess.Popen(["/Applications/Slack.app/Contents/MacOS/Slack"])

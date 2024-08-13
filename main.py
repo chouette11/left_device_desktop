@@ -4,6 +4,9 @@ import json
 from pystray import Icon, MenuItem, Menu
 from PIL import Image
 import time
+import key
+import app_open
+import subprocess
 
 class BlockingServerBase:
     def __init__(self, timeout: int = 60, buffer: int = 1024):
@@ -72,8 +75,14 @@ class BlockingServerBase:
 
                     if 'data' in json_ob:
                         print(f"Data from JSON: {json_ob['data']}")
-                        if json_ob['data'] == 'exit':
-                            print("Client requested exit")
+                        if json_ob['data'] == 'slack':
+                            app_open.open_slack()
+                            break
+                        elif json_ob['data'] == 'copy':
+                            key.copy()
+                            break
+                        elif json_ob['data'] == 'paste':
+                            key.paste()
                             break
 
                     byte = 'ok'.encode('utf-8')

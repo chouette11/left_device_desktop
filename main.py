@@ -2,6 +2,9 @@ import socket
 import flet as ft
 import threading
 import json
+import key
+import app_open
+import subprocess
 
 def main(page: ft.Page):
     # テキストコンポーネントを作成
@@ -85,8 +88,14 @@ def main(page: ft.Page):
                         # Example of processing the JSON object
                         if 'data' in json_ob:
                             print(f"Data from JSON: {json_ob['data']}")
-                            if json_ob['data'] == 'exit':
-                                print("Client requested exit")
+                            if json_ob['data'] == 'slack':
+                                app_open.open_slack()
+                                break
+                            elif json_ob['data'] == 'copy':
+                                key.copy()
+                                break
+                            elif json_ob['data'] == 'paste':
+                                key.paste()
                                 break
                         
                         byte = 'ok'.encode('utf-8')
@@ -105,7 +114,7 @@ def main(page: ft.Page):
             update_message_box(message)
 
     class InetServer(BlockingServerBase):
-        def __init__(self, host: str = "192.168.10.103", port: int = 8080) -> None:
+        def __init__(self, host: str = "192.168.252.44", port: int = 8080) -> None:
             super().__init__(timeout=60, buffer=1024)
             self.server = (host, port)
             self.message_queue = []  # message_queueの初期化

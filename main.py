@@ -6,7 +6,7 @@ from PIL import Image
 import time
 import key
 import app_open
-import subprocess
+import flet as ft
 
 class BlockingServerBase:
     def __init__(self, timeout: int = 60, buffer: int = 1024):
@@ -115,12 +115,20 @@ class TaskTray:
         # 右クリックで表示されるメニュー
         self.menu = Menu(
             MenuItem('Exit', self.stop_program),
+            MenuItem('Setting', self.setting),
         )
         self.icon = Icon(name='nameTray', title='titleTray', icon=self.image, menu=self.menu)
 
-    def stop_program(self, icon, item):
+    def stop_program(self):
         self.status = False
         self.icon.stop()
+    
+    def setting(self):
+        def main(page: ft.Page):
+            page.title = "Settings"
+            page.add(ft.Text("Settings page"))
+    
+        ft.app(target=main)
 
     def run_schedule(self):
         # 5秒ごとにタスクを実行する

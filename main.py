@@ -72,14 +72,11 @@ class BlockingServerBase:
                         continue
 
                     if "data" in json_ob:
-                        if json_ob["data"] == "slack":
-                            app_open.open_slack()
-                            break
-                        elif json_ob["data"] == "copy":
-                            key.copy()
-                            break
-                        elif json_ob["data"] == "paste":
-                            key.paste()
+                        data = json_ob["data"]
+                        # dataを_+_で区切る
+                        type, value = data.split("_+_")
+                        if type == "hotkey":
+                            app_open.hotkey(value)
                             break
 
                     conn.send("ok".encode("utf-8"))

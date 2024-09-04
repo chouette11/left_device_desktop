@@ -1,18 +1,14 @@
-import socket
-import threading
-import json
+import socket, threading, json, time, sys, os, key, app_open, qrcode, io, base64
 from pystray import Icon, MenuItem, Menu
 from PIL import Image
-import time
-import key
-import app_open
 import flet as ft
+
 
 class BlockingServerBase:
     def __init__(self, timeout: int = 60, buffer: int = 1024):
-        self.__socket = None
-        self.__timeout = timeout
-        self.__buffer = buffer
+        self._socket = None  # ソケットを保持する変数
+        self._timeout = timeout  # タイムアウト設定
+        self._buffer = buffer  # バッファサイズ設定
         self.message_queue = []
         self.gui_update_event = threading.Event()
         self.running = True
@@ -21,26 +17,30 @@ class BlockingServerBase:
         self.close()
 
     def close(self) -> None:
-        if self.__socket:
+        """サーバーソケットを閉じる"""
+        if self._socket:
             try:
-                self.__socket.shutdown(socket.SHUT_RDWR)
-                self.__socket.close()
+                self._socket.shutdown(socket.SHUT_RDWR)
+                self._socket.close()
             except (AttributeError, OSError) as e:
                 print(f"Error closing socket: {e}")
 
     def start(self, address, family: int, typ: int, proto: int) -> None:
-        self.__socket = socket.socket(family, typ, proto)
-        self.__socket.settimeout(self.__timeout)
+        """サーバーを開始する"""
+        self._socket = socket.socket(family, typ, proto)  # ソケットを作成
+        self._socket.settimeout(self._timeout)  # タイムアウトを設定
         try:
-            self.__socket.bind(address)
-            self.__socket.listen(1)
+            self._socket.bind(address)  # ソケットをアドレスにバインド
+            self._socket.listen(1)  # クライアントからの接続を待つ
             print(f"Server started on {address}")
 
             while self.running:
                 try:
-                    conn, addr = self.__socket.accept()
+                    conn, addr = (
+                        self._socket.accept()
+                    )  # クライアントからの接続を受け入れ
                     print(f"Connection from {addr}")
-                    self.handle_client(conn)
+                    self.handle_client(conn)  # クライアントの処理を行う
                 except socket.timeout:
                     continue
                 except Exception as e:
@@ -52,97 +52,160 @@ class BlockingServerBase:
             self.close()
 
     def handle_client(self, conn: socket.socket) -> None:
+        """クライアントからのメッセージを処理する"""
         with conn:
             while self.running:
                 try:
-                    message_recv = conn.recv(self.__buffer).decode('utf-8')
+                    message_recv = conn.recv(self._buffer).decode("utf-8")
                     if not message_recv:
                         break
                     self.message_queue.append(message_recv)
-                    # メッセージを処理
-                    message_list = message_recv.split('\n')
-                    message_recv = message_list[-1]
                     print(f"Received message: {message_recv}")
+
                     try:
                         json_ob = json.loads(message_recv)
                         print(f"JSON object: {json_ob}")
                     except json.JSONDecodeError as json_err:
                         print(f"JSON decode error: {json_err}")
-                        print(f"Invalid JSON: {message_recv}")
-                        error_message = 'Invalid JSON format'.encode('utf-8')
+                        error_message = "Invalid JSON format".encode("utf-8")
                         conn.send(error_message)
                         continue
 
-                    if 'data' in json_ob:
-                        print(f"Data from JSON: {json_ob['data']}")
-                        if json_ob['data'] == 'slack':
+                    if "data" in json_ob:
+                        if json_ob["data"] == "slack":
                             app_open.open_slack()
                             break
-                        elif json_ob['data'] == 'copy':
+                        elif json_ob["data"] == "copy":
                             key.copy()
                             break
-                        elif json_ob['data'] == 'paste':
+                        elif json_ob["data"] == "paste":
                             key.paste()
                             break
 
-                    byte = 'ok'.encode('utf-8')
-                    conn.send(byte)
-                except ConnectionResetError:
-                    print("Connection reset by client")
-                    break
-                except BrokenPipeError:
-                    print("Broken pipe error")
-                    break
-                except Exception as e:
-                    print(f"Error handling client: {e}")
+                    conn.send("ok".encode("utf-8"))
+                except (ConnectionResetError, BrokenPipeError) as e:
+                    print(f"Connection error: {e}")
                     break
 
-    def respond(self, message: str) -> str:
-        print(message)  # Example of how to use respond method
 
 class InetServer(BlockingServerBase):
-    def __init__(self, host: str = "192.168.10.7", port: int = 8080) -> None:
-        super().__init__(timeout=60, buffer=1024)
+    def __init__(self, host: str = None, port: int = 8080) -> None:
+        super().__init__(timeout=60, buffer=1024)  # 親クラスの初期化を最初に呼び出す
+
+        # ローカルIPアドレスを取得
+        host = host or self.get_local_ip()
         self.server = (host, port)
-        self.message_queue = []  # message_queueの初期化
-        threading.Thread(target=self.start, args=(self.server, socket.AF_INET, socket.SOCK_STREAM, 0), daemon=True).start()
+
+        # サーバーを新しいスレッドで開始
+        threading.Thread(
+            target=self.start,
+            args=(self.server, socket.AF_INET, socket.SOCK_STREAM, 0),
+            daemon=True,
+        ).start()
+
+        # QRコードを生成
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(host)
+        qr.make(fit=True)
+        self.qr_image = qr.make_image(fill_color="black", back_color="white")
+
+    def get_local_ip(self):
+        """ローカルIPアドレスを取得する"""
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            # GoogleのDNSサーバーに接続しているかのように振る舞い、ローカルIPを取得
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+        except Exception as e:
+            print(f"Failed to get local IP address: {e}")
+            ip = "127.0.0.1"  # 取得できなかった場合はループバックアドレスを使用
+        finally:
+            s.close()
+        return ip
+
+    def get_qr_image(self):
+        return self.qr_image  # 生成したQRコード画像を返す
+
 
 class TaskTray:
-    def __init__(self, image):
+    def __init__(self, image, server: InetServer):
         self.status = False
-        # アイコンの画像
+        self.server = server  # サーバーインスタンスを保持
+        # アイコンの画像を読み込む
         self.image = Image.open(image)
-        # 右クリックで表示されるメニュー
+        # 右クリックで表示されるメニューを作成
         self.menu = Menu(
-            MenuItem('Exit', self.stop_program),
-            MenuItem('Setting', self.setting),
+            MenuItem("Exit", self.stop_program),
+            MenuItem("Setting", self.setting),
         )
-        self.icon = Icon(name='nameTray', title='titleTray', icon=self.image, menu=self.menu)
+        self.icon = Icon(
+            name="nameTray", title="titleTray", icon=self.image, menu=self.menu
+        )
 
     def stop_program(self):
         self.status = False
         self.icon.stop()
-    
+
     def setting(self):
         def main(page: ft.Page):
             page.title = "Settings"
-            page.add(ft.Text("Settings page"))
-    
+            page.window.width = 400
+            page.window.height = 500
+
+            page.update()
+            page.window.center()
+
+            # QRコード画像をPILからバイトデータに変換
+            qr_image = self.server.get_qr_image()
+            with io.BytesIO() as buffer:
+                qr_image.save(buffer, format="PNG")
+                qr_image_bytes = buffer.getvalue()
+
+            qr_image_base64 = base64.b64encode(qr_image_bytes).decode("utf-8")
+
+            page.add(
+                ft.Column(
+                    [
+                        ft.Text("Settings", size=25),
+                        ft.Text("スマートフォンでこちらを読み取ってください", size=16),
+                        ft.Image(src_base64=qr_image_base64),
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                )
+            )
+
         ft.app(target=main)
 
     def run_schedule(self):
         # 5秒ごとにタスクを実行する
         while self.status:
-            print('タスクを実行しました。')
+            print("タスクを実行しました。")
             time.sleep(5)
 
     def run_program(self):
-        # サーバーを起動
-        self.server = InetServer()
         self.status = True
         threading.Thread(target=self.run_schedule, daemon=True).start()
         self.icon.run()
 
-if __name__ == '__main__':
-    system_tray = TaskTray(image="sample.png")
-    system_tray.run_program()
+
+def resource_path(relative_path):
+    """リソースファイルのパスを返す"""
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+
+if __name__ == "__main__":
+    icon_path = resource_path("sample.icns")
+    server = InetServer()  # InetServer インスタンスを作成
+    system_tray = TaskTray(
+        image=icon_path, server=server
+    )  # タスクトレイのインスタンスを作成
+    system_tray.run_program()  # プログラムを実行

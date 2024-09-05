@@ -10,3 +10,8 @@ def copy():
 
 def paste():
     pyautogui.hotkey('command', 'v')
+
+def hotkey(value):
+    # valueをスペースで分割して、hotkeyを実行する
+    keys = value.split(' ')
+    pyautogui.hotkey(*keys)

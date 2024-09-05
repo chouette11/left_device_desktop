@@ -1,3 +1,9 @@
+on: 
+  push:
+    branches:
+      - main
+      - feature/build
+
 jobs:
   build:
     strategy:

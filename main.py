@@ -3,6 +3,21 @@ from pystray import Icon, MenuItem, Menu
 from PIL import Image
 import flet as ft
 
+def extract_json_from_http_request(message_recv):
+    # リクエスト全体を2つに分割 (ヘッダーとボディ)
+    header_body_split = message_recv.split("\r\n\r\n", 1)
+
+    # header_body_splitの長さが1の場合、ヘッダー部分のみが含まれている
+    if len(header_body_split) == 1:
+        return {}
+    
+    # ヘッダー部分 (不要な部分)
+    headers = header_body_split[0]
+    
+    # ボディ部分 (JSONデータが含まれる)
+    body = header_body_split[1]
+    
+    return body
 
 class BlockingServerBase:
     def __init__(self, timeout: int = 60, buffer: int = 1024):
@@ -60,26 +75,29 @@ class BlockingServerBase:
                     if not message_recv:
                         break
                     self.message_queue.append(message_recv)
-                    print(f"Received message: {message_recv}")
 
-                    try:
-                        json_ob = json.loads(message_recv)
-                        print(f"JSON object: {json_ob}")
-                    except json.JSONDecodeError as json_err:
-                        print(f"JSON decode error: {json_err}")
-                        error_message = "Invalid JSON format".encode("utf-8")
-                        conn.send(error_message)
-                        continue
+                    # # message_recvにdataが含まれていない場合、終了
+                    # if "POST" in message_recv:
+                    #     break
+
+                    print('ここから')
+                    print(f"Received message: {message_recv}")
+                    print('ここまで')
+
+                    json_ob = extract_json_from_http_request(message_recv)
+                    print(f"JSON object: {json_ob}")
 
                     if "data" in json_ob:
-                        data = json_ob["data"]
+                        json_data = json.loads(json_ob)
+                        data = json_data["data"]
                         # dataを_+_で区切る
                         type, value = data.split("_+_")
                         if type == "hotkey":
-                            app_open.hotkey(value)
+                            key.hotkey(value)
                             break
 
                     conn.send("ok".encode("utf-8"))
+                    break
                 except (ConnectionResetError, BrokenPipeError) as e:
                     print(f"Connection error: {e}")
                     break

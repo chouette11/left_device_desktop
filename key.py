@@ -13,5 +13,6 @@ def paste():
 
 def hotkey(value):
     # valueをスペースで分割して、hotkeyを実行する
-    keys = value.split(' ')
+    keys = value[:-1].split(' ')
+    print(f"Hotkey: {keys}")
     pyautogui.hotkey(*keys)

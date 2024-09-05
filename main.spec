@@ -5,8 +5,8 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('sample.icns', '.')],
-    hiddenimports=['socket', 'threading', 'json', 'time', 'sys', 'os', 'key', 'app_open', 'pystray', 'flet', 'PIL'],
+    datas=[('dist/sample.icns', '.')],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -35,11 +35,11 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['sample.icns'],
+    icon=['dist/sample.icns'],
 )
 app = BUNDLE(
     exe,
     name='main.app',
-    icon='sample.icns',
+    icon='dist/sample.icns',
     bundle_identifier=None,
 )
